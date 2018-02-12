@@ -1,6 +1,17 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-var cors = require('cors');
+const cors = require('cors');
+const knex = require('knex')
+
+const db = knex({
+  client: 'pg',
+  connection: {
+    host : '127.0.0.1',
+    user : 'aifi',
+    password : '',
+    database : 'face-rec'
+  }
+});
 
 const app = express();
 app.use(bodyParser.json());
@@ -42,43 +53,43 @@ app.post('/signin',(req,res) =>{
 
 app.post('/register',(req,res) =>{
   const { name, email, password } = req.body;
-  database.users.push(
-    {
-      id: "123",
-      name: name,
-      email: email,
-
-      entries: 0,
-      create_at: new Date()
-    }
-  );
-    res.json(database.users[database.users.length-1]);
+  return db('users')
+      .returning('*')
+      .insert({
+        name: name,
+        email: email,
+        create_at: new Date()
+      })
+      .then(user => {
+          res.json(user[0]);
+      })
+      .catch(err => res.status(400).json('Unable to register'))
 });
 
 app.get('/profile/:id',(req,res) => {
   const { id } = req.params;
-  const userId = database.users.filter(user =>{
-    return user.id === id
-  });
-  (userId.length > 0) ? res.json(userId) : res.status(404).json("no user found");
+  db.select('*').from('users')
+    .where({id})
+    .then(user =>
+      {
+        if(user.length){
+          res.json(user[0])
+        }else {
+          res.status(404).json("no user found")
+        }
+      })
+    .catch(err => res.status(404).json("error getting user"));
 
 });
 
 app.put('/Image',(req,res) =>{
   const { id } = req.body;
-  const userId = database.users.filter(user =>{
-
-    return user.id === id
-  });
-  if (userId.length > 0) {
-    userId[0].entries++;
-    res.json(userId[0].entries)
-  }
-  else {
-    res.status(404).json("no user found");
-  }
-
-})
+  db('users').where({id})
+    .increment('entries',1)
+    .returning('entries')
+    .then(entries => res.json(entries[0]))
+    .catch(err => res.status(404).json("no user found"))
+  })
 
 app.listen(3001, ()=> {
   console.log("app is running on 3000");
